@@ -1,3 +1,5 @@
+Read the Medium article about our project here: https://medium.com/@emir.genc/an-agentic-system-for-autonomous-data-journalism-with-entertainment-industry-datasets-8e7da6505f29
+
 # Autonomous Data Journalism Agent
 
 ## Project Overview
