@@ -48,6 +48,6 @@ Our pipeline moves away from single-prompt inference and utilizes a multi-step a
     *   Building the Hugging Face Spaces `Gradio` interface to visualize the agent's real-time terminal outputs and final article.
 
 *   **Emir İsmail Genç 2202780 - Agent Orchestration & QA**
-    *   Building the `LangGraph`/`CrewAI` state machine and defining the prompt personas.
+    *   Building the `LangGraph` state machine and defining the prompt personas.
     *   Developing the Evaluation Framework (building the regex/deterministic parser that checks the LLM's text against the Python output).
     *   Implementing the revision loop logic and the hard-coded circuit breakers to handle API timeouts and infinite loops.
