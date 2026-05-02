@@ -11,7 +11,7 @@ The system will rely on a strictly sandboxed Python environment for all mathemat
 
 Our pipeline moves away from single-prompt inference and utilizes a multi-step agentic graph.
 
-*   **Orchestration:** `LangGraph` (preferred for strict state management and cyclic loop control. 
+*   **Orchestration:** `LangGraph` (preferred for strict state management and cyclic loop control). 
 *   **Execution Environment:** `E2B Data Analysis Sandbox`. The agent writes and executes `pandas`, `numpy`, and `scipy` scripts here.
 *   **Core LLMs:** 
     *   *Analyst & Drafter Agents:* Either a model from OpenAI, Anthropic or Google, for advanced code generation and narrative drafting. Because these are closer to natural human-like writing.
