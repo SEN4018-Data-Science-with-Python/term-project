@@ -1,58 +1,48 @@
 from __future__ import annotations
 import os
-import tempfile
+import time
 import gradio as gr
 from dotenv import load_dotenv
-from functools import partial
-from langgraph.graph import StateGraph, END
-from src.state import AgentState
 from src.sandbox import Sandbox
-from src.agents.ingest import ingest_node
-from src.agents.analyst import analyst_node
-from src.agents.journalist import journalist_node
-from src.agents.evaluator import evaluator_node, evaluator_route
+from src.graph import build_graph, initial_state
 
 load_dotenv()
-
-
-def _build(sandbox: Sandbox):
-    workflow = StateGraph(AgentState)
-    workflow.add_node("ingest", partial(ingest_node, sandbox=sandbox))
-    workflow.add_node("analyst", partial(analyst_node, sandbox=sandbox))
-    workflow.add_node("journalist", journalist_node)
-    workflow.add_node("evaluator", evaluator_node)
-    workflow.set_entry_point("ingest")
-    workflow.add_edge("ingest", "analyst")
-    workflow.add_edge("analyst", "journalist")
-    workflow.add_edge("journalist", "evaluator")
-    workflow.add_conditional_edges(
-        "evaluator", evaluator_route, {"analyst": "analyst", "end": END}
-    )
-    return workflow.compile()
 
 
 def run_pipeline(csv_file):
     if csv_file is None:
         yield "Please upload a CSV first.", ""
         return
-    sandbox = Sandbox()
+    log = "Starting pipeline...\n"
+    article = ""
+    file_size_mb = os.path.getsize(csv_file.name) / (1024 * 1024)
+    log += f"CSV size: {file_size_mb:.1f} MB\n"
+    if file_size_mb > 100:
+        log += "Large CSV detected; schema mapping uses sampled profiling before targeted analysis.\n"
+    yield log, article
+
+    sandbox = None
+    started_at = time.monotonic()
     try:
-        graph = _build(sandbox)
-        initial: AgentState = {
-            "dataset_path": csv_file.name,
-            "schema": {},
-            "analysis_plan": [],
-            "analysis_results": [],
-            "article_draft": "",
-            "evaluation_errors": [],
-            "revision_count": 0,
-            "final_article": "",
-        }
-        log = ""
-        article = ""
+        log += "Creating E2B sandbox...\n"
+        yield log, article
+        sandbox = Sandbox()
+
+        log += f"E2B sandbox ready. Uploading CSV to E2B ({file_size_mb:.1f} MB)...\n"
+        yield log, article
+        remote_path = sandbox.upload(csv_file.name)
+
+        log += "Upload complete. Building LangGraph workflow...\n"
+        yield log, article
+        graph = build_graph(sandbox)
+        initial = initial_state(remote_path)
+
+        log += "Running graph with uploaded dataset...\n"
+        yield log, article
         for event in graph.stream(initial, config={"recursion_limit": 25}):
+            elapsed = time.monotonic() - started_at
             for node, update in event.items():
-                log += f"\n▶ {node} completed\n"
+                log += f"\n▶ {node} completed at +{elapsed:.1f}s\n"
                 if "analysis_results" in update and update["analysis_results"]:
                     last = update["analysis_results"][-1]
                     log += f"  stdout (truncated):\n  {last['stdout'][:500]}\n"
@@ -61,8 +51,12 @@ def run_pipeline(csv_file):
                 if "final_article" in update and update["final_article"]:
                     article = update["final_article"]
                 yield log, article
+    except Exception as exc:
+        log += f"\n✖ Pipeline failed: {type(exc).__name__}: {exc}\n"
+        yield log, article
     finally:
-        sandbox.close()
+        if sandbox is not None:
+            sandbox.close()
 
 
 with gr.Blocks(title="Autonomous Data Journalism Agent") as demo:

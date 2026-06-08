@@ -1,7 +1,7 @@
 from __future__ import annotations
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 from src.state import AgentState
+from src.llm import content_to_text, get_llm
 
 SYSTEM = """You are a senior data journalist for a Reuters-style wire service.
 
@@ -25,7 +25,7 @@ Draft the article.
 
 
 def journalist_node(state: AgentState) -> dict:
-    llm = ChatOpenAI(model="gpt-4o", temperature=0.4)
+    llm = get_llm(temperature=0.4)
     analyses = "\n\n---\n\n".join(
         f"Script:\n{r['script']}\n\nStdout:\n{r['stdout']}"
         for r in state["analysis_results"]
@@ -39,4 +39,4 @@ def journalist_node(state: AgentState) -> dict:
         )
     user = USER_TEMPLATE.format(analyses=analyses, revision_notes=revision_notes)
     response = llm.invoke([SystemMessage(content=SYSTEM), HumanMessage(content=user)])
-    return {"article_draft": response.content.strip()}
+    return {"article_draft": content_to_text(response.content).strip()}

@@ -30,22 +30,25 @@ def build_graph(sandbox: Sandbox):
     return workflow.compile()
 
 
+def initial_state(dataset_path: str) -> AgentState:
+    return {
+        "dataset_path": dataset_path,
+        "schema": {},
+        "analysis_plan": [],
+        "analysis_results": [],
+        "article_draft": "",
+        "evaluation_errors": [],
+        "revision_count": 0,
+        "final_article": "",
+    }
+
+
 def run(dataset_path: str) -> str:
     load_dotenv()
     sandbox = Sandbox()
     try:
         graph = build_graph(sandbox)
-        initial: AgentState = {
-            "dataset_path": dataset_path,
-            "schema": {},
-            "analysis_plan": [],
-            "analysis_results": [],
-            "article_draft": "",
-            "evaluation_errors": [],
-            "revision_count": 0,
-            "final_article": "",
-        }
-        final = graph.invoke(initial, config={"recursion_limit": 25})
+        final = graph.invoke(initial_state(dataset_path), config={"recursion_limit": 25})
         return final["final_article"]
     finally:
         sandbox.close()

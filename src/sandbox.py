@@ -15,6 +15,10 @@ class Sandbox:
         self._dataset_remote_path = f"/home/user/{remote_name}"
         return self._dataset_remote_path
 
+    def set_dataset_path(self, remote_path: str) -> str:
+        self._dataset_remote_path = remote_path
+        return self._dataset_remote_path
+
     def run(self, code: str) -> dict:
         exec_result = self._sbx.run_code(code)
         stdout = "\n".join(exec_result.logs.stdout)
