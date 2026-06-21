@@ -29,6 +29,17 @@ class IngestScalabilityTests(unittest.TestCase):
         self.assertIn('"encoding": encoding', source)
         self.assertIn('"read_csv_kwargs"', source)
 
+    def test_ingest_builds_memory_safe_read_recipe_for_huge_files(self):
+        # Big files (1M+ rows) must not be loaded with all columns or they OOM
+        # the sandbox. Ingest pins a usecols/dtype recipe the analyst reuses.
+        source = INGEST_PATH.read_text()
+
+        self.assertIn("TEXT_LEN_LIMIT", source)
+        self.assertIn('"usecols": analysis_columns', source)
+        self.assertIn('"float32"', source)
+        self.assertIn('"category"', source)
+        self.assertIn("excluded_columns", source)
+
 
 if __name__ == "__main__":
     unittest.main()
