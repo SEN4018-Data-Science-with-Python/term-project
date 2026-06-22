@@ -14,7 +14,7 @@ Our pipeline moves away from single-prompt inference and utilizes a multi-step a
 *   **Orchestration:** `LangGraph` (preferred for strict state management and cyclic loop control). 
 *   **Execution Environment:** `E2B Data Analysis Sandbox`. The agent writes and executes `pandas`, `numpy`, and `scipy` scripts here.
 *   **Core LLMs:** 
-    *   *Analyst & Drafter Agents:* Either a model from OpenAI, Anthropic or Google, for advanced code generation and narrative drafting. Because these are closer to natural human-like writing.
+    *   *Analyst & Drafter Agents:* Gemini as the primary provider, with Qwen as the fallback provider for advanced code generation and narrative drafting.
     *   *Evaluator Agent:* A deterministic parser + LLM combo to verify stdout logs against narrative claims.
 *   **Deployment & UI:** `Hugging Face Spaces`, running a `Gradio` frontend for users to upload CSVs and view the live agentic process and final article.
 
