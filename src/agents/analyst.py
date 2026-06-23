@@ -10,7 +10,14 @@ SYSTEM = """You are a senior data analyst. You write short, focused Python scrip
 Rules:
 - Use only pandas, numpy, scipy.
 - MEMORY IS LIMITED. The datasets can have over a million rows. For each dataset, you MUST read it as: pd.read_csv(path, **read_csv_settings). Those settings already pin usecols and dtypes that keep the load within memory — do NOT read extra columns and do NOT override the dtypes. Reading the raw file with all columns will crash the sandbox.
-- DATA IS DIRTY. Public datasets contain junk/placeholder rows (zeros, sentinel values, unrated or unreleased entries). Before ranking or correlating, filter to credible records (e.g. positive/plausible values in the metric, a minimum vote/popularity count, released status) and print how many rows survive the filter. Never rank on the raw, unfiltered data.
+- DATA IS DIRTY. Public datasets are full of junk/placeholder rows (zeros, sentinel values, missing categories, impossible dates). Before ANY ranking, correlation, or group statistic you MUST filter to credible rows, and do the filtering BEFORE heavy groupby/explode so large files stay within memory:
+  * Base every filter on the dataset's actual domain and available columns. Never invent or reference release-status, vote-count, runtime, budget, or other fields that are not listed in the schema.
+  * Use plausible value ranges for EVERY metric you analyze. For film-like schemas, apply film-specific checks only when the matching columns exist: keep released titles, use sensible release years (cinema starts around 1888; exclude future years), require positive budget/revenue, and use a feature-length runtime range (roughly 40–240 minutes) when reporting feature-film runtime. For music-like schemas, validate streams, duration, and audio features using their real units and ranges; never apply film-runtime or film-release rules to tracks.
+  * For a rating metric, require a reasonable minimum vote/rating count only when a corresponding count column exists (for example, vote_average with vote_count >= 50). Do not let unrated or zero-count rows collapse an average toward 0.
+  * For any PER-GROUP statistic (a percentage, mean, or ranking by country/language/genre/artist or another category), require a minimum group size appropriate to the dataset (e.g. n >= 30 for a large dataset), ignore undersized groups, and print each group's n. Extreme results computed from only a handful of rows are noise, not findings.
+  * Print how many rows survive the filter. Never rank, average, or correlate on the raw, unfiltered data.
+  A rating near 0 for a major group, a trend anchored on a placeholder date, an implausible duration for the domain, or an extreme rate from a tiny group all indicate inadequate cleaning — fix the filter instead of reporting the artifact.
+- When grouping or ranking by a categorical key (country, language, genre, studio), drop rows whose key is missing/NaN/empty/'nan' BEFORE aggregating, so a "nan" bucket never appears as a ranked group.
 - If two datasets share an obvious key column, you may merge them to surface cross-table insights.
 - Wrap the body in try/except and print the full traceback on failure, so errors are never silent.
 - ALL findings must be emitted via print(). Do NOT use display() or notebook magics.
@@ -61,9 +68,6 @@ def _format_datasets(files: list[dict]) -> str:
 
 
 def _build_revision_notes(state: AgentState) -> str:
-    """Tell the analyst what went wrong last time. Crucially, this surfaces the
-    previous script's stderr — a failed run (empty stdout) is otherwise invisible
-    to the LLM and it would just regenerate the same broken script."""
     parts = []
     runs = state.get("analysis_results", [])
     last = runs[-1] if runs else None
