@@ -53,6 +53,14 @@ def run_pipeline(csv_file, kaggle_ref):
             elapsed = time.monotonic() - started_at
             for node, update in event.items():
                 log += f"\n▶ {node} completed at +{elapsed:.1f}s\n"
+                if node == "planner":
+                    plan = update.get("analysis_plan")
+                    if plan:
+                        log += "  planned investigations (chosen from the schema):\n"
+                        for i, task in enumerate(plan, 1):
+                            log += f"    {i}. {task[:160]}\n"
+                    else:
+                        log += "  (kept the default investigation plan)\n"
                 if "analysis_results" in update and update["analysis_results"]:
                     last = update["analysis_results"][-1]
                     log += f"  stdout (truncated):\n  {last['stdout'][:500]}\n"
@@ -74,17 +82,16 @@ def run_pipeline(csv_file, kaggle_ref):
 with gr.Blocks(title="Autonomous Data Journalism Agent") as demo:
     gr.Markdown("# Autonomous Data Journalism Agent")
     gr.Markdown(
-        "Upload a CSV of entertainment industry data, **or** give a Kaggle dataset "
-        "ref (e.g. `asaniczka/tmdb-movies-dataset-2023-930k-movies`) to download it "
-        "straight into the sandbox. The agent performs EDA, drafts an article, and "
-        "verifies every numerical claim."
+        "Upload a CSV of entertainment industry data, "
+        "**or** give a Kaggle dataset ref to download it straight into the sandbox. "
+        "The agent performs EDA, drafts an article, and verifies every numerical claim."
     )
     with gr.Row():
         with gr.Column():
             file_input = gr.File(label="CSV dataset", file_types=[".csv"])
             kaggle_input = gr.Textbox(
-                label="…or Kaggle dataset ref (owner/slug)",
-                placeholder="asaniczka/tmdb-movies-dataset-2023-930k-movies",
+                label="…or Kaggle dataset ref (owner/dataset-name)",
+                placeholder="owner/dataset-name",
             )
             run_btn = gr.Button("Run pipeline", variant="primary")
             log_output = gr.Textbox(label="Live agent log", lines=20, max_lines=40)
@@ -98,4 +105,4 @@ with gr.Blocks(title="Autonomous Data Journalism Agent") as demo:
 
 
 if __name__ == "__main__":
-    demo.launch()
+    demo.launch(ssr_mode=False)

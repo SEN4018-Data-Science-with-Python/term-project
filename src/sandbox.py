@@ -3,18 +3,10 @@ import json
 import os
 from e2b_code_interpreter import Sandbox as E2BSandbox
 
-# The sandbox must outlive a multi-iteration revision loop (download + several
-# analyst/journalist/evaluator passes), and a single analysis over 1M+ rows can
-# take a while — give both generous headroom so executions aren't cut off
-# ("UnexpectedEndOfExecution: Connection to the execution was closed").
 SANDBOX_TIMEOUT_SECONDS = 900
 RUN_TIMEOUT_SECONDS = 300
 
 
-# Runs INSIDE the E2B VM. `ref` is injected as a Python literal (see
-# download_kaggle) so we avoid str.format brace-escaping headaches. The big
-# dataset is downloaded over E2B's datacenter link and never touches the host;
-# only this small JSON manifest of discovered CSVs travels back.
 KAGGLE_DOWNLOAD_CODE = """
 import json, os, glob
 import kagglehub
@@ -31,20 +23,12 @@ print(json.dumps({"download_dir": download_dir, "csv_files": csv_files}))
 def _parse_kaggle_manifest(
     stdout: str, stderr: str, error, dataset_ref: str
 ) -> list[dict]:
-    """Turn a sandbox download execution into the CSV manifest.
-
-    `error` is E2B's structured execution error (an actual Python exception) or
-    None. stderr is NOT treated as failure: kagglehub/tqdm write progress bars
-    and warnings there on a perfectly successful download.
-    """
     if error is not None:
         detail = f"{error.name}: {error.value}"
         if stderr.strip():
             detail += f"\n{stderr.strip()}"
         raise RuntimeError(f"Kaggle download failed: {detail}")
 
-    # Scan from the end for the first line that parses as our manifest, so any
-    # stray progress text that leaked onto stdout cannot break ingestion.
     payload = None
     for line in reversed([ln for ln in stdout.splitlines() if ln.strip()]):
         try:
@@ -68,10 +52,9 @@ def _parse_kaggle_manifest(
 
 class Sandbox:
     def __init__(self) -> None:
-        # E2BSandbox() constructor is deprecated in e2b-code-interpreter >=1.0;
-        # use the Sandbox.create() classmethod instead.
         self._sbx = E2BSandbox.create(timeout=SANDBOX_TIMEOUT_SECONDS)
         self._dataset_remote_path: str | None = None
+        self._context = None
 
     def upload(self, local_path: str, remote_name: str = "data.csv") -> str:
         with open(local_path, "rb") as f:
@@ -84,18 +67,11 @@ class Sandbox:
         return self._dataset_remote_path
 
     def download_kaggle(self, dataset_ref: str) -> list[dict]:
-        """Download a Kaggle dataset directly inside the sandbox.
-
-        Returns a manifest of every CSV found: [{"path", "size_bytes"}, ...].
-        The ingest node profiles all of them and points the sandbox's primary
-        handle at the largest (see ingest._primary_path).
-        """
         envs = {
             name: value
             for name in ("KAGGLE_USERNAME", "KAGGLE_KEY")
             if (value := os.environ.get(name))
         }
-        # kagglehub is not in the default E2B template; install it in the VM.
         self._sbx.commands.run("pip install -q kagglehub", timeout=300, envs=envs)
 
         code = "ref = " + repr(dataset_ref) + "\n" + KAGGLE_DOWNLOAD_CODE
@@ -107,8 +83,18 @@ class Sandbox:
             dataset_ref=dataset_ref,
         )
 
+    def _fresh_context(self):
+        if self._context is None:
+            self._context = self._sbx.create_code_context()
+        else:
+            self._sbx.restart_code_context(self._context)
+        return self._context
+
     def run(self, code: str) -> dict:
-        exec_result = self._sbx.run_code(code, timeout=RUN_TIMEOUT_SECONDS)
+        context = self._fresh_context()
+        exec_result = self._sbx.run_code(
+            code, context=context, timeout=RUN_TIMEOUT_SECONDS
+        )
         stdout = "\n".join(exec_result.logs.stdout)
         stderr = "\n".join(exec_result.logs.stderr)
         if exec_result.error:
